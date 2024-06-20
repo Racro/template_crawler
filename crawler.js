@@ -33,7 +33,7 @@ var xvfb = new Xvfb({
 xvfb.startSync((err)=>{if (err) console.error(err)});
 
 // for debugging: will lunch in window mode instad of headless, open devtools and don't close windows after process finishes
-const VISUAL_DEBUG = false;
+const VISUAL_DEBUG = true;
 
 /**
  * @param {function(...any):void} log
@@ -54,7 +54,7 @@ function openBrowser(log, proxyHost, executablePath, extension) {
                 '--disable-web-security',
                 '--disable-features=IsolateOrigins,site-per-process',
                 '--start-maximized',
-                // '--display='+xvfb._display,
+                '--display='+xvfb._display,
             ]
         };
     } else {
@@ -67,7 +67,7 @@ function openBrowser(log, proxyHost, executablePath, extension) {
                 '--start-maximized',
                 `--disable-extensions-except=./extn_src/${extension}`,
                 `--load-extension=./extn_src/${extension}`,
-                // '--display='+xvfb._display,
+                '--display='+xvfb._display,
 
             ]
         };
@@ -304,9 +304,10 @@ async function getSiteData(context, url, {
         }
     }
 
-    if (!VISUAL_DEBUG) {
-        await page.close();
-    }
+    // if (!VISUAL_DEBUG) {
+    //     await page.close();
+    // }
+    await page.close();
 
     return {
         initialUrl: url.toString(),
@@ -344,13 +345,13 @@ module.exports = async (url, options) => {
             const extensionsPage = await browser.newPage();
             await extensionsPage.goto( 'chrome://extensions', { waitUntil: 'load' } );
             
-            // await extensionsPage.screenshot({ path: 'extension.png'});
+            await extensionsPage.screenshot({ path: 'extension.png'});
 
-            // await extensionsPage.evaluate(`
-            // chrome.developerPrivate.getExtensionsInfo().then((extensions) => {
-            //     extensions.map((extension) => chrome.developerPrivate.updateExtensionConfiguration({extensionId: extension.id, incognitoAccess: true}));
-            // });
-            // `);
+            await extensionsPage.evaluate(`
+            chrome.developerPrivate.getExtensionsInfo().then((extensions) => {
+                extensions.map((extension) => chrome.developerPrivate.updateExtensionConfiguration({extensionId: extension.id, incognitoAccess: true}));
+            });
+            `);
 
         } catch (e) {
             console.error('\n00000000000000\n');
@@ -364,7 +365,7 @@ module.exports = async (url, options) => {
         // await sleep(2000);
     }
     
-    const context = options.browserContext || await browser.defaultBrowserContext();
+    const context = options.browserContext || await browser.createIncognitoBrowserContext();
     // const context = browser;
 
     let data = null;
@@ -392,10 +393,10 @@ module.exports = async (url, options) => {
         throw e;
     } finally {
         // only close the browser if it was created here and not debugging
-        if (browser && !VISUAL_DEBUG) {
-        //     log('Closing the context and the browser');
-        //     await context.close();
-        //     log('Context closed');
+        if (browser) {
+            log('Closing the context and the browser');
+            await context.close();
+            log('Context closed');
             await browser.close();
             log('Browser process closed');
             // await browser.close();
