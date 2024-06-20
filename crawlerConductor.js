@@ -11,7 +11,7 @@ const downloadCustomChromium = require('./helpers/downloadCustomChromium');
 const BaseCollector = require('./collectors/BaseCollector');
 const notABot = require('./helpers/notABot');
 
-const MAX_NUMBER_OF_CRAWLERS = 38;// by trial and error there seems to be network bandwidth issues with more than 38 browsers. 
+const MAX_NUMBER_OF_CRAWLERS = 1;// by trial and error there seems to be network bandwidth issues with more than 38 browsers. 
 const MAX_NUMBER_OF_RETRIES = 2;
 
 /**
@@ -27,8 +27,10 @@ const MAX_NUMBER_OF_RETRIES = 2;
  * @param {number} maxLoadTimeMs
  * @param {number} extraExecutionTimeMs
  * @param {Object.<string, string>} collectorFlags
+ * @param {string} outputPath
+ * @param {string} extension
  */
-async function crawlAndSaveData(urlString, dataCollectors, log, filterOutFirstParty, dataCallback, emulateMobile, proxyHost, antiBotDetection, executablePath, maxLoadTimeMs, extraExecutionTimeMs, collectorFlags) {
+async function crawlAndSaveData(urlString, dataCollectors, log, filterOutFirstParty, dataCallback, emulateMobile, proxyHost, antiBotDetection, executablePath, maxLoadTimeMs, extraExecutionTimeMs, collectorFlags, outputPath, extension) {
     const url = new URL(urlString);
     /**
      * @type {function(...any):void} 
@@ -47,13 +49,15 @@ async function crawlAndSaveData(urlString, dataCollectors, log, filterOutFirstPa
         maxLoadTimeMs,
         extraExecutionTimeMs,
         collectorFlags,
+        outputPath,
+        extension
     });
 
     dataCallback(url, data);
 }
 
 /**
- * @param {{urls: Array<string|{url:string,dataCollectors?:BaseCollector[]}>, dataCallback: function(URL, import('./crawler').CollectResult): void, dataCollectors?: BaseCollector[], failureCallback?: function(string, Error): void, numberOfCrawlers?: number, logFunction?: function, filterOutFirstParty: boolean, emulateMobile: boolean, proxyHost: string, antiBotDetection?: boolean, chromiumVersion?: string, maxLoadTimeMs?: number, extraExecutionTimeMs?: number, collectorFlags?: Object.<string, boolean>}} options
+ * @param {{urls: Array<string|{url:string,dataCollectors?:BaseCollector[]}>, dataCallback: function(URL, import('./crawler').CollectResult): void, dataCollectors?: BaseCollector[], failureCallback?: function(string, Error): void, numberOfCrawlers?: number, logFunction?: function, filterOutFirstParty: boolean, emulateMobile: boolean, proxyHost: string, antiBotDetection?: boolean, chromiumVersion?: string, maxLoadTimeMs?: number, extraExecutionTimeMs?: number, collectorFlags?: Object.<string, boolean>, outputPath?:string, extension?:string}} options
  */
 module.exports = async options => {
     const deferred = createDeferred();
@@ -89,7 +93,7 @@ module.exports = async options => {
         log(chalk.cyan(`Processing entry #${Number(idx) + 1} (${urlString}).`));
         const timer = createTimer();
 
-        const task = crawlAndSaveData.bind(null, urlString, dataCollectors, log, options.filterOutFirstParty, options.dataCallback, options.emulateMobile, options.proxyHost, (options.antiBotDetection !== false), executablePath, options.maxLoadTimeMs, options.extraExecutionTimeMs, options.collectorFlags);
+        const task = crawlAndSaveData.bind(null, urlString, dataCollectors, log, options.filterOutFirstParty, options.dataCallback, options.emulateMobile, options.proxyHost, (options.antiBotDetection !== false), executablePath, options.maxLoadTimeMs, options.extraExecutionTimeMs, options.collectorFlags, options.outputPath, options.extension);
 
         async.retry(MAX_NUMBER_OF_RETRIES, task, err => {
             if (err) {

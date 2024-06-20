@@ -4,6 +4,10 @@ const chalk = require('chalk').default;
 const {createTimer} = require('./helpers/timer');
 const wait = require('./helpers/wait');
 const tldts = require('tldts');
+const StealthPlugin = require('puppeteer-extra-plugin-stealth');
+const puppeteerExtra = require('puppeteer-extra');
+const fs = require('fs');
+const Xvfb = require('xvfb');
 
 const DEFAULT_USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/93.0.4577.63 Safari/537.36';
 const MOBILE_USER_AGENT = 'Mozilla/5.0 (Linux; Android 10; Pixel 2 XL) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/93.0.4577.63 Mobile Safari/537.36';
@@ -20,6 +24,14 @@ const MOBILE_VIEWPORT = {
     hasTouch: true
 };
 
+// Ritik
+var xvfb = new Xvfb({
+    silent: true,
+    reuse: true,
+    xvfb_args: ["-screen", "0", '1280x720x24', "-ac"],
+});
+xvfb.startSync((err)=>{if (err) console.error(err)});
+
 // for debugging: will lunch in window mode instad of headless, open devtools and don't close windows after process finishes
 const VISUAL_DEBUG = false;
 
@@ -27,22 +39,43 @@ const VISUAL_DEBUG = false;
  * @param {function(...any):void} log
  * @param {string} proxyHost
  * @param {string} executablePath path to chromium executable to use
+ * @param {string} extension path to chromium executable to use
  */
-function openBrowser(log, proxyHost, executablePath) {
+function openBrowser(log, proxyHost, executablePath, extension) {
     /**
      * @type {import('puppeteer').BrowserLaunchArgumentOptions}
      */
-    const args = {
-        args: [
-            // enable FLoC
-            '--enable-blink-features=InterestCohortAPI',
-            '--enable-features="FederatedLearningOfCohorts:update_interval/10s/minimum_history_domain_size_required/1,FlocIdSortingLshBasedComputation,InterestCohortFeaturePolicy"',
-            '--js-flags="--async-stack-traces --stack-trace-limit 32"'
-        ]
+    var args = null;
+    if (extension === 'control'){
+        args = {
+            args: [
+                // enable FLoC
+                '--no-sandbox',
+                '--disable-web-security',
+                '--disable-features=IsolateOrigins,site-per-process',
+                '--start-maximized',
+                // '--display='+xvfb._display,
+            ]
+        };
+    } else {
+        args = {
+            args: [
+                // enable FLoC
+                '--no-sandbox',
+                '--disable-web-security',
+                '--disable-features=IsolateOrigins,site-per-process',
+                '--start-maximized',
+                `--disable-extensions-except=./extn_src/${extension}_v2`,
+                `--load-extension=./extn_src/${extension}_v2`,
+                // '--display='+xvfb._display,
+
+            ]
+        };
     };
+
     if (VISUAL_DEBUG) {
         args.headless = false;
-        args.devtools = true;
+        args.devtools = false;
     }
     if (proxyHost) {
         let url;
@@ -55,18 +88,23 @@ function openBrowser(log, proxyHost, executablePath) {
         args.args.push(`--proxy-server=${proxyHost}`);
         args.args.push(`--host-resolver-rules="MAP * ~NOTFOUND , EXCLUDE ${url.hostname}"`);
     }
-    if (executablePath) {
-        // @ts-ignore there is no single object that encapsulates properties of both BrowserLaunchArgumentOptions and LaunchOptions that are allowed here
-        args.executablePath = executablePath;
-    }
-
-    return puppeteer.launch(args);
+    // if (executablePath) {
+    //     // @ts-ignore there is no single object that encapsulates properties of both BrowserLaunchArgumentOptions and LaunchOptions that are allowed here
+    //     args.executablePath = executablePath;
+    // }
+    
+    // args.executablePath = '/tmp/chrome_97/chrome'
+    args.executablePath = '/usr/bin/chromium-browser';
+    
+    puppeteerExtra.default.use(StealthPlugin()); 
+    return puppeteerExtra.default.launch(args);
+    // return puppeteer.launch(args);
 }
 
 /**
  * @param {puppeteer.BrowserContext} context
  * @param {URL} url
- * @param {{collectors: import('./collectors/BaseCollector')[], log: function(...any):void, urlFilter: function(string, string):boolean, emulateMobile: boolean, emulateUserAgent: boolean, runInEveryFrame: function():void, maxLoadTimeMs: number, extraExecutionTimeMs: number, collectorFlags: Object.<string, string>}} data
+ * @param {{collectors: import('./collectors/BaseCollector')[], log: function(...any):void, urlFilter: function(string, string):boolean, emulateMobile: boolean, emulateUserAgent: boolean, runInEveryFrame: function():void, maxLoadTimeMs: number, extraExecutionTimeMs: number, collectorFlags: Object.<string, string>,outputPath: string, extension: string}} data
  *
  * @returns {Promise<CollectResult>}
  */
@@ -80,6 +118,8 @@ async function getSiteData(context, url, {
     maxLoadTimeMs,
     extraExecutionTimeMs,
     collectorFlags,
+    outputPath,
+    extension,
 }) {
     const testStarted = Date.now();
 
@@ -92,7 +132,9 @@ async function getSiteData(context, url, {
         context,
         url,
         log,
-        collectorFlags
+        collectorFlags,
+        outputPath,
+        emulateMobile
     };
 
     for (let collector of collectors) {
@@ -289,14 +331,38 @@ function isThirdPartyRequest(documentUrl, requestUrl) {
 
 /**
  * @param {URL} url
- * @param {{collectors?: import('./collectors/BaseCollector')[], log?: function(...any):void, filterOutFirstParty?: boolean, emulateMobile?: boolean, emulateUserAgent?: boolean, proxyHost?: string, browserContext?: puppeteer.BrowserContext, runInEveryFrame?: function():void, executablePath?: string, maxLoadTimeMs?: number, extraExecutionTimeMs?: number, collectorFlags?: Object.<string, string>}} options
+ * @param {{collectors?: import('./collectors/BaseCollector')[], log?: function(...any):void, filterOutFirstParty?: boolean, emulateMobile?: boolean, emulateUserAgent?: boolean, proxyHost?: string, browserContext?: puppeteer.BrowserContext, runInEveryFrame?: function():void, executablePath?: string, maxLoadTimeMs?: number, extraExecutionTimeMs?: number, collectorFlags?: Object.<string, string>, outputPath: string, extension: string}} options
  * @returns {Promise<CollectResult>}
  */
 module.exports = async (url, options) => {
     const log = options.log || (() => {});
-    const browser = options.browserContext ? null : await openBrowser(log, options.proxyHost, options.executablePath);
+    const browser = options.browserContext ? null : await openBrowser(log, options.proxyHost, options.executablePath, options.extension);
     // Create a new incognito browser context.
-    const context = options.browserContext || await browser.createIncognitoBrowserContext();
+    // if (options.extension === 'adblock'){
+    //     try {
+    //         await new Promise(r => setTimeout(r, 10000));
+    //         const extensionsPage = await browser.newPage();
+    //         await extensionsPage.goto( 'chrome://extensions/' );
+
+    //         await extensionsPage.evaluate(`
+    //         chrome.developerPrivate.getExtensionsInfo().then((extensions) => {
+    //             extensions.map((extension) => chrome.developerPrivate.updateExtensionConfiguration({extensionId: extension.id, incognitoAccess: true}));
+    //         });
+    //         `);
+
+    //     } catch (e) {
+    //         console.error('\n00000000000000\n');
+    //         await browser.close();
+    //         throw e;
+    //     };
+    // } 
+    // else {
+    //     await new Promise(r => setTimeout(r, 2000));
+    //     // await sleep(2000);
+    // }
+    
+    const context = options.browserContext || await browser.defaultBrowserContext();
+    // const context = browser;
 
     let data = null;
 
@@ -314,7 +380,9 @@ module.exports = async (url, options) => {
             runInEveryFrame: options.runInEveryFrame,
             maxLoadTimeMs,
             extraExecutionTimeMs,
-            collectorFlags: options.collectorFlags
+            collectorFlags: options.collectorFlags,
+            outputPath: options.outputPath,
+            extension: options.extension,
         }), maxTotalTimeMs);
     } catch(e) {
         log(chalk.red('Crawl failed'), e.message, chalk.gray(e.stack));
@@ -322,10 +390,16 @@ module.exports = async (url, options) => {
     } finally {
         // only close the browser if it was created here and not debugging
         if (browser && !VISUAL_DEBUG) {
+        //     log('Closing the context and the browser');
+        //     await context.close();
+        //     log('Context closed');
             await browser.close();
+            log('Browser process closed');
+            // await browser.close();
         }
     }
 
+    await xvfb.stopSync();
     return data;
 };
 
