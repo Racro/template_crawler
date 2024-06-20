@@ -65,8 +65,8 @@ function openBrowser(log, proxyHost, executablePath, extension) {
                 '--disable-web-security',
                 '--disable-features=IsolateOrigins,site-per-process',
                 '--start-maximized',
-                `--disable-extensions-except=./extn_src/${extension}_v2`,
-                `--load-extension=./extn_src/${extension}_v2`,
+                `--disable-extensions-except=./extn_src/${extension}`,
+                `--load-extension=./extn_src/${extension}`,
                 // '--display='+xvfb._display,
 
             ]
@@ -338,28 +338,31 @@ module.exports = async (url, options) => {
     const log = options.log || (() => {});
     const browser = options.browserContext ? null : await openBrowser(log, options.proxyHost, options.executablePath, options.extension);
     // Create a new incognito browser context.
-    // if (options.extension === 'adblock'){
-    //     try {
-    //         await new Promise(r => setTimeout(r, 10000));
-    //         const extensionsPage = await browser.newPage();
-    //         await extensionsPage.goto( 'chrome://extensions/' );
+    if (options.extension != 'control'){
+        try {
+            await new Promise(r => setTimeout(r, 10000));
+            const extensionsPage = await browser.newPage();
+            await extensionsPage.goto( 'chrome://extensions', { waitUntil: 'load' } );
+            
+            // await extensionsPage.screenshot({ path: 'extension.png'});
 
-    //         await extensionsPage.evaluate(`
-    //         chrome.developerPrivate.getExtensionsInfo().then((extensions) => {
-    //             extensions.map((extension) => chrome.developerPrivate.updateExtensionConfiguration({extensionId: extension.id, incognitoAccess: true}));
-    //         });
-    //         `);
+            // await extensionsPage.evaluate(`
+            // chrome.developerPrivate.getExtensionsInfo().then((extensions) => {
+            //     extensions.map((extension) => chrome.developerPrivate.updateExtensionConfiguration({extensionId: extension.id, incognitoAccess: true}));
+            // });
+            // `);
 
-    //     } catch (e) {
-    //         console.error('\n00000000000000\n');
-    //         await browser.close();
-    //         throw e;
-    //     };
-    // } 
-    // else {
-    //     await new Promise(r => setTimeout(r, 2000));
-    //     // await sleep(2000);
-    // }
+        } catch (e) {
+            console.error('\n00000000000000\n');
+            console.error(e);
+            await browser.close();
+            throw e;
+        };
+    } 
+    else {
+        await new Promise(r => setTimeout(r, 2000));
+        // await sleep(2000);
+    }
     
     const context = options.browserContext || await browser.defaultBrowserContext();
     // const context = browser;
