@@ -368,6 +368,9 @@ module.exports = async (url, options) => {
     const context = options.browserContext || await browser.createIncognitoBrowserContext();
     // const context = browser;
 
+    // wait for bbrowser window to open
+    await new Promise(r => setTimeout(r, 2000));
+
     let data = null;
 
     const maxLoadTimeMs = options.maxLoadTimeMs || 30000;
