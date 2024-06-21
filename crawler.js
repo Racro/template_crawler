@@ -30,7 +30,7 @@ var xvfb = new Xvfb({
     reuse: true,
     xvfb_args: ["-screen", "0", '1280x720x24', "-ac"],
 });
-xvfb.startSync((err)=>{if (err) console.error(err)});
+// xvfb.startSync((err)=>{if (err) console.error(err)});
 
 // for debugging: will lunch in window mode instad of headless, open devtools and don't close windows after process finishes
 const VISUAL_DEBUG = true;
@@ -54,7 +54,7 @@ function openBrowser(log, proxyHost, executablePath, extension) {
                 '--disable-web-security',
                 '--disable-features=IsolateOrigins,site-per-process',
                 '--start-maximized',
-                '--display='+xvfb._display,
+                // '--display='+xvfb._display,
             ]
         };
     } else {
@@ -67,7 +67,7 @@ function openBrowser(log, proxyHost, executablePath, extension) {
                 '--start-maximized',
                 `--disable-extensions-except=./extn_src/${extension}`,
                 `--load-extension=./extn_src/${extension}`,
-                '--display='+xvfb._display,
+                // '--display='+xvfb._display,
 
             ]
         };
@@ -100,6 +100,29 @@ function openBrowser(log, proxyHost, executablePath, extension) {
     return puppeteerExtra.default.launch(args);
     // return puppeteer.launch(args);
 }
+
+async function autoScroll(page, maxScrolls){
+    await page.evaluate(async (maxScrolls) => {
+        await new Promise((resolve) => {
+            var totalHeight = 0;
+            var distance = 100;
+            var scrolls = 0;  // scrolls counter
+            var timer = setInterval(() => {
+                var scrollHeight = document.body.scrollHeight;
+                window.scrollBy(0, distance);
+                totalHeight += distance;
+                scrolls++;  // increment counter
+
+                // stop scrolling if reached the end or the maximum number of scrolls
+                if(totalHeight >= scrollHeight - window.innerHeight || scrolls >= maxScrolls){
+                    clearInterval(timer);
+                    resolve();
+                }
+            }, 100);
+        });
+    }, maxScrolls);  // pass maxScrolls to the function
+};
+
 
 /**
  * @param {puppeteer.BrowserContext} context
@@ -278,6 +301,10 @@ async function getSiteData(context, url, {
      * @type {Object<string, Object>}
      */
     const data = {};
+
+    // console.error(`COLLECTORS: ${collectors}`);
+
+    await autoScroll(page, 400);
 
     for (let collector of collectors) {
         const getDataTimer = createTimer();
