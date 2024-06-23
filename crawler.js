@@ -30,7 +30,7 @@ var xvfb = new Xvfb({
     reuse: true,
     xvfb_args: ["-screen", "0", '1280x720x24', "-ac"],
 });
-// xvfb.startSync((err)=>{if (err) console.error(err)});
+xvfb.startSync((err)=>{if (err) console.error(err)});
 
 // for debugging: will lunch in window mode instad of headless, open devtools and don't close windows after process finishes
 const VISUAL_DEBUG = true;
@@ -54,7 +54,7 @@ function openBrowser(log, proxyHost, executablePath, extension) {
                 '--disable-web-security',
                 '--disable-features=IsolateOrigins,site-per-process',
                 '--start-maximized',
-                // '--display='+xvfb._display,
+                '--display='+xvfb._display,
             ]
         };
     } else {
@@ -67,7 +67,7 @@ function openBrowser(log, proxyHost, executablePath, extension) {
                 '--start-maximized',
                 `--disable-extensions-except=./extn_src/${extension}`,
                 `--load-extension=./extn_src/${extension}`,
-                // '--display='+xvfb._display,
+                '--display='+xvfb._display,
 
             ]
         };
@@ -265,7 +265,7 @@ async function getSiteData(context, url, {
     let timeout = false;
 
     try {
-        await page.goto(url.toString(), {timeout: maxLoadTimeMs, waitUntil: 'networkidle0'});
+        await page.goto(url.toString(), {timeout: maxLoadTimeMs, waitUntil: 'networkidle2'});
     } catch (e) {
         if (e instanceof puppeteer.errors.TimeoutError || (e.name && e.name === 'TimeoutError')) {
             log(chalk.yellow('Navigation timeout exceeded.'));
@@ -400,7 +400,7 @@ module.exports = async (url, options) => {
 
     let data = null;
 
-    const maxLoadTimeMs = options.maxLoadTimeMs || 30000;
+    const maxLoadTimeMs = options.maxLoadTimeMs || 45000;
     const extraExecutionTimeMs = options.extraExecutionTimeMs || 2500;
     const maxTotalTimeMs = maxLoadTimeMs * 2;
 
